@@ -18,7 +18,7 @@ BoolTensor = torch.cuda.BoolTensor if cuda else torch.BoolTensor
 LongTensor = torch.cuda.LongTensor if cuda else torch.LongTensor
 
 # Set your path
-your_path = 'your_path'
+your_path = "/content/Tail-GAN/Tail-GAN"
 
 trans_parent_data_path = join(your_path, 'Static_Port_Transform')
 
