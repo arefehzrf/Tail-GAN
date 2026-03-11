@@ -155,7 +155,7 @@ this_version = '_'.join(
      'Esb' + str(opt.numNN)])
 
 # set path
-your_path = 'your_path'
+your_path = "/content/Tail-GAN/Tail-GAN"
 
 # Save Path
 gen_data_path = join(your_path, f"Gens/gen_data_{this_version}")
