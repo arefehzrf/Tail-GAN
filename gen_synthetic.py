@@ -11,7 +11,7 @@ import statsmodels.api as sm
 from sklearn.datasets import make_sparse_spd_matrix, make_spd_matrix
 from statsmodels.stats.moment_helpers import cov2corr, corr2cov
 
-your_path = 'your_path'
+your_path = "/content/Tail-GAN/Tail-GAN"
 parent_data_path = join(your_path, 'gan_data')
 
 
