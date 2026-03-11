@@ -174,15 +174,15 @@ def Compute_PNL(R):
     """
     R is the return matrix
     """
-    #threshold_source = opt.threshold_data_name or opt.data_name
-    #threshold_length = min(opt.threshold_len, opt.len)
-    thresholds_array = gen_thresholds(
-    threshold_source,
-    opt.tickers,
-    strategy,
-    percentile_l,
-    threshold_length,
-    opt.WH)
+    threshold_source = opt.threshold_data_name or opt.data_name
+    threshold_length = min(opt.threshold_len, opt.len)
+    # thresholds_array = gen_thresholds(
+    # threshold_source,
+    # opt.tickers,
+    # strategy,
+    # percentile_l,
+    # threshold_length,
+    # opt.WH)
 
     # convert to Prices
     prices_l = Inc2Price(R)
