@@ -288,7 +288,8 @@ class Discriminator(nn.Module):
         for i, alpha in enumerate(self.alphas):
             v = validity[:, 2*i].clone()
             e = validity[:, 2*i+1].clone()
-            indicator = torch.sign(torch.as_tensor(0.5 - alpha))
+            #indicator = torch.sign(torch.as_tensor(0.5 - alpha))
+            indicator = torch.sign(torch.tensor(0.5 - alpha, device=validity.device))
             validity[:, 2*i] = indicator * ((self.W * v < e).float() * v + (self.W * v >= e).float() * (v + self.W * e) / (1 + self.W ** 2))
             validity[:, 2*i+1] = indicator * ((self.W * v < e).float() * e + (self.W * v >= e).float() * self.W * (v + self.W * e) / (1 + self.W ** 2))
         return validity
