@@ -37,8 +37,9 @@ def gen_thresholds(data_name, tickers, strategy, percentile_l, length, WH):
     else:
         data_path = join(parent_data_path, data_name)
         data_l = []
-        files = os.listdir(data_path)
-        files.sort()
+        files = sorted([f for f in os.listdir(data_path) if f.endswith(".csv")])
+        #files = os.listdir(data_path)
+        #files.sort()
         for item in range(length):
             file_path = join(data_path, files[item])
             tmp_data = pd.read_csv(file_path)[tickers].values.T
