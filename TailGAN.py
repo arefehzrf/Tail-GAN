@@ -45,23 +45,67 @@ parser.add_argument("--n_cols", type=int, default=100, help="number of columns")
 parser.add_argument("--n_critic_G", type=int, default=1, help="number of training steps for discriminator per iter")
 parser.add_argument("--n_critic_D", type=int, default=1, help="number of training steps for generator per iter")
 parser.add_argument("--static_way", type=str, default='LShort', help="trading way of static portfolios")
-parser.add_argument("--strategies", type=list, default=['Port', 'MR', 'TF'], help="a list of strategy names")
+#parser.add_argument("--strategies", type=list, default=['Port', 'MR', 'TF'], help="a list of strategy names")
 parser.add_argument("--n_trans", type=int, default=50, help="number of static portfolios")
 parser.add_argument("--Cap", type=int, default=10, help="maximum investment capital")
 parser.add_argument("--WH", type=int, default=10, help="window history for strategy")
-parser.add_argument("--ratios", type=list, default=[1.0, 1.0], help="ratios for longing or shorting")
-parser.add_argument("--thresholds_pct", type=list, default=[[31, 69]], help="thresholds for longing or shorting")
+#parser.add_argument("--ratios", type=list, default=[1.0, 1.0], help="ratios for longing or shorting")
+#parser.add_argument("--thresholds_pct", type=list, default=[[31, 69]], help="thresholds for longing or shorting")
 parser.add_argument("--data_name", type=str, default='1_Gauss+1_AR50+1_AR-12+1_GARCH-T5+1_GARCH-T10', help="data name")
-parser.add_argument("--tickers", type=list, default=['Gauss', 'AR50', 'AR-12', 'GARCH-T5', 'GARCH-T10'], help="tickers")
+#parser.add_argument("--tickers", type=list, default=['Gauss', 'AR50', 'AR-12', 'GARCH-T5', 'GARCH-T10'], help="tickers")
 parser.add_argument("--noise_name", type=str, default='t5', help="noise name")
-parser.add_argument("--alphas", type=list, default=[0.05], help="quantiles")
+#parser.add_argument("--alphas", type=list, default=[0.05], help="quantiles")
+parser.add_argument(
+    "--strategies",
+    nargs="+",
+    default=['Port', 'MR', 'TF'],
+    help="list of strategy names",
+)
+parser.add_argument(
+    "--ratios",
+    nargs=2,
+    type=float,
+    default=[1.0, 1.0],
+    help="ratios for longing and shorting",
+)
+parser.add_argument(
+    "--thresholds_pct",
+    nargs="+",
+    default=["31,69"],
+    help='threshold pairs, e.g. "31,69" "20,80"',
+)
+parser.add_argument(
+    "--tickers",
+    nargs="+",
+    default=['Gauss', 'AR50', 'AR-12', 'GARCH-T5', 'GARCH-T10'],
+    help="tickers",
+)
+parser.add_argument(
+    "--alphas",
+    nargs="+",
+    type=float,
+    default=[0.05],
+    help="quantiles",
+)
 parser.add_argument("--W", type=float, default=10.0, help="scale parameter for W")
 parser.add_argument("--score", type=str, default='quant', help="score function")
 parser.add_argument("--numNN", type=int, default=10, help="number of NNs")
 parser.add_argument("--project", type=bool, default=True, help="Project into constraint set")
 parser.add_argument("--version", type=str, default=f'Test{seed}', help="version number")
-
+parser.add_argument(
+    "--threshold_len",
+    type=int,
+    default=1000,
+    help="number of windows used to estimate MR/TF thresholds",
+)
+parser.add_argument(
+    "--threshold_data_name",
+    type=str,
+    default=None,
+    help="dataset used for threshold estimation; if None, use data_name",
+)
 opt = parser.parse_args()
+opt.thresholds_pct = [list(map(int, s.split(","))) for s in opt.thresholds_pct]
 print(opt)
 R_shape = (opt.n_rows, opt.n_cols)
 
@@ -102,6 +146,8 @@ this_version = '_'.join(
      'WH' + str(opt.WH),
      'R' + '+'.join([str(a) for a in opt.ratios]),
      'T' + '+'.join(['_'.join(map(str, i)) for i in opt.thresholds_pct]),
+     'ThrSrc' + str(opt.threshold_data_name if opt.threshold_data_name is not None else opt.data_name),
+     'ThrLen' + str(opt.threshold_len),
      'D' + str(opt.n_critic_D), 'G' + str(opt.n_critic_G),
      'LR' + '-'.join([str(opt.lr_D), str(opt.lr_G)]),
      'Temp' + str(opt.temp),
@@ -112,10 +158,10 @@ this_version = '_'.join(
 your_path = 'your_path'
 
 # Save Path
-gen_data_path = join(your_path, "Gens/gen_data_{this_version}")
+gen_data_path = join(your_path, f"Gens/gen_data_{this_version}")
 os.makedirs(gen_data_path, exist_ok=True)
 
-model_path = join(your_path, "Models/model_{this_version}")
+model_path = join(your_path, f"Models/model_{this_version}")
 os.makedirs(model_path, exist_ok=True)
 
 
@@ -128,6 +174,9 @@ def Compute_PNL(R):
     """
     R is the return matrix
     """
+    threshold_source = opt.threshold_data_name or opt.data_name
+    threshold_length = min(opt.threshold_len, opt.len)
+
     # convert to Prices
     prices_l = Inc2Price(R)
     port_prices_l = StaticPort(prices_l, opt.n_trans, opt.static_way, insample=True)
@@ -139,24 +188,54 @@ def Compute_PNL(R):
         if strategy == 'Port':
             PNL_BHPort = BuyHold(port_prices_l, opt.Cap)
             PNL_l.append(PNL_BHPort)
+
         elif strategy == 'MR':
             for percentile_l in opt.thresholds_pct:
-                thresholds_array = gen_thresholds(opt.data_name, opt.tickers, strategy, percentile_l, 100, opt.WH)
-                PNL_MR = MeanRev(prices_l, opt.Cap, opt.WH, LR=opt.ratios[0], SR=opt.ratios[1],
-                                 ST=thresholds_array[:, -1], LT=thresholds_array[:, -2])
+                thresholds_array = gen_thresholds(
+                    threshold_source,
+                    opt.tickers,
+                    strategy,
+                    percentile_l,
+                    threshold_length,
+                    opt.WH,
+                )
+                PNL_MR = MeanRev(
+                    prices_l,
+                    opt.Cap,
+                    opt.WH,
+                    LR=opt.ratios[0],
+                    SR=opt.ratios[1],
+                    ST=thresholds_array[:, -1],
+                    LT=thresholds_array[:, -2],
+                )
                 PNL_l.append(PNL_MR)
+
         elif strategy == 'TF':
             for percentile_l in opt.thresholds_pct:
-                thresholds_array = gen_thresholds(opt.data_name, opt.tickers, strategy, percentile_l, 100, opt.WH)
-                PNL_TF = TrendFollow(prices_l, opt.Cap, opt.WH, LR=opt.ratios[0], SR=opt.ratios[1],
-                                     ST=thresholds_array[:, 0], LT=thresholds_array[:, 1])
+                thresholds_array = gen_thresholds(
+                    threshold_source,
+                    opt.tickers,
+                    strategy,
+                    percentile_l,
+                    threshold_length,
+                    opt.WH,
+                )
+                PNL_TF = TrendFollow(
+                    prices_l,
+                    opt.Cap,
+                    opt.WH,
+                    LR=opt.ratios[0],
+                    SR=opt.ratios[1],
+                    ST=thresholds_array[:, 0],
+                    LT=thresholds_array[:, 1],
+                )
                 PNL_l.append(PNL_TF)
+
         else:
             pass
 
     PNL = torch.cat(PNL_l, dim=1)
     return PNL
-
 
 # Generator is a MLP with 4 layers
 class Generator(nn.Module):
@@ -427,31 +506,35 @@ def Train(opt):
     """
     # Configure data loader
     dataset = Dataset_IS(tickers=opt.tickers, data_path=join(your_path, "gan_data", opt.data_name), length=opt.len)
+
     dataloader = torch.utils.data.DataLoader(dataset,
                                              batch_size=opt.batch_size,
-                                             shuffle=True)
+                                            shuffle=True,
+                                            drop_last=True)
 
     for iii in range(opt.numNN):
-        print("------ Model %d Starts with Random Seed %d " % (iii, seed))
-        Train_Single(opt, dataloader, model_index=iii, seed=seed)
+        model_seed = seed + iii
+        print("------ Model %d Starts with Random Seed %d " % (iii, model_seed))
+        Train_Single(opt, dataloader, model_index=iii, seed=model_seed)
 
 
 # Some trained models may not converge well, we only use those models with a good converge
 # This selection is based on the training data, so no look-forward bias
+
 def Screen_Ensemble(thres_perc=50):
     loss_l = []
     for j in range(opt.numNN):
-        # load loss, focus on the last generator loss
         loss_np = np.load(join(gen_data_path, 'loss_id%d.npy' % j))
-        loss_l.append(loss_np[:, 1].iloc[-1])
+        # loss_np shape = (2, n_epochs): row 0 = D loss, row 1 = G loss
+        loss_l.append(loss_np[1, -1])
 
     threshold_loss = np.percentile(loss_l, thres_perc)
+
     select_l = []
     for j in range(opt.numNN):
         if loss_l[j] <= threshold_loss:
             select_l.append(j)
-        else:
-            pass
+
     return select_l
 
 
