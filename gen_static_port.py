@@ -12,7 +12,7 @@ import scipy.sparse as sparse
 import scipy.stats as stats
 
 # Save Path
-your_path = 'your_path'
+your_path = "/content/Tail-GAN/Tail-GAN"
 trans_parent_data_path = join(your_path, 'Static_Port_Transform')
 os.makedirs(trans_parent_data_path, exist_ok=True)
 
