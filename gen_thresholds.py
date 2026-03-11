@@ -13,7 +13,7 @@ from torch import nn
 
 from Transform import Tensor, Inc2Price, movingaverage
 
-your_path = 'your_path'
+your_path = "/content/Tail-GAN/Tail-GAN"
 parent_data_path = join(your_path, 'gan_data')
 
 
